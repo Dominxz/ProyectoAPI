@@ -1,8 +1,6 @@
-// controladores/solicitudesCertCtrl.js
-// Maneja el flujo de usuarios que piden convertirse en médicos.
-// Guarda estado: pendiente, en_revision, aprobado, rechazado.
-
+// controladores/solicitudesCtrl.js  (o solicitudesCertCtrl.js, pero que coincida con el import)
 import { conmysql } from "../db.js";
+import cloudinary from "../cloudinary.js";
 
 // === PRUEBA DE CONEXIÓN ===
 export const pruebaSolicitudes = (req, res) => {
@@ -57,11 +55,34 @@ export const getSolicitudxId = async (req, res) => {
   }
 };
 
-// === CREAR NUEVA SOLICITUD ===
+// === CREAR NUEVA SOLICITUD (subiendo PDF a Cloudinary) ===
 export const postSolicitud = async (req, res) => {
   try {
     const { usuario_id, numero_licencia, especialidad, institucion } = req.body;
-    const documento_adjunto = req.file?.filename || null;
+
+    let documento_adjunto = null;
+
+    // Si viene archivo PDF, lo subimos a Cloudinary
+    if (req.file) {
+      const uploadResult = await new Promise((resolve, reject) => {
+        const stream = cloudinary.uploader.upload_stream(
+          {
+            folder: "solicitudes_certificacion",
+            resource_type: "raw", // 👈 para PDFs
+          },
+          (error, result) => {
+            if (error) reject(error);
+            else resolve(result);
+          }
+        );
+        stream.end(req.file.buffer);
+      });
+
+      documento_adjunto = uploadResult.secure_url;
+    } else if (req.body.documento_adjunto) {
+      // Por si algún día mandas una URL directa desde el front
+      documento_adjunto = req.body.documento_adjunto;
+    }
 
     const [result] = await conmysql.query(
       `INSERT INTO solicitudes_certificacion
@@ -70,14 +91,17 @@ export const postSolicitud = async (req, res) => {
       [usuario_id, numero_licencia, especialidad, institucion, documento_adjunto]
     );
 
-    res.json({ solicitud_id: result.insertId });
+    res.json({
+      solicitud_id: result.insertId,
+      documento_adjunto,
+    });
   } catch (error) {
     console.error("Error en postSolicitud:", error);
     res.status(500).json({ message: "Error en el servidor" });
   }
 };
 
-// === ACTUALIZAR SOLICITUD (ESTADO, REVISIÓN) ===
+// === ACTUALIZAR SOLICITUD (estado, PDF, revisión) ===
 export const putSolicitud = async (req, res) => {
   try {
     const { id } = req.params;
@@ -89,8 +113,40 @@ export const putSolicitud = async (req, res) => {
       numero_licencia,
       especialidad,
       institucion,
-      documento_adjunto,
     } = req.body;
+
+    // Traemos la solicitud actual para conservar el documento si no envían uno nuevo
+    const [currentRows] = await conmysql.query(
+      "SELECT documento_adjunto FROM solicitudes_certificacion WHERE solicitud_id=?",
+      [id]
+    );
+
+    if (currentRows.length === 0)
+      return res.status(404).json({ message: "Solicitud no encontrada" });
+
+    let documento_adjunto = currentRows[0].documento_adjunto;
+
+    // Si viene nuevo PDF, lo subimos a Cloudinary y reemplazamos URL
+    if (req.file) {
+      const uploadResult = await new Promise((resolve, reject) => {
+        const stream = cloudinary.uploader.upload_stream(
+          {
+            folder: "solicitudes_certificacion",
+            resource_type: "raw",
+          },
+          (error, result) => {
+            if (error) reject(error);
+            else resolve(result);
+          }
+        );
+        stream.end(req.file.buffer);
+      });
+
+      documento_adjunto = uploadResult.secure_url;
+    } else if (req.body.documento_adjunto) {
+      // Si te mandan una URL manualmente
+      documento_adjunto = req.body.documento_adjunto;
+    }
 
     const [result] = await conmysql.query(
       `UPDATE solicitudes_certificacion

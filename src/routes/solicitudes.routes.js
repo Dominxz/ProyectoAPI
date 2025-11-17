@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { verifyToken } from "../middlewares/verifyToken.js";
-import { uploadPDF } from "../middlewares/uploadPDF.js";
+import { uploadPDF } from "../middlewares/upload.js"; 
 import { verifyRole } from "../middlewares/verifyRole.js";   // ⬅ FALTABA ESTO
 
 import {
