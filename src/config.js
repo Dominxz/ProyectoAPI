@@ -1,10 +1,10 @@
 import { config } from "dotenv";
 config();
 
-export const BD_HOST = process.env.BD_HOST || "b4y3ati1zf5apibds6o7-mysql.services.clever-cloud.com";
-export const BD_DATABASE = process.env.BD_DATABASE || "b4y3ati1zf5apibds6o7";
-export const BD_USER = process.env.BD_USER || "ufombeob0aafmtgm";
-export const BD_PASSWORD = process.env.BD_PASSWORD || "EkFAKtaKCdNlAkQrQPFP";
+export const BD_HOST = process.env.BD_HOST || "bxzgqkf0glzpxmszhsun-mysql.services.clever-cloud.com";
+export const BD_DATABASE = process.env.BD_DATABASE || "bxzgqkf0glzpxmszhsun";
+export const BD_USER = process.env.BD_USER || "udpkyrhassc8pirw";
+export const BD_PASSWORD = process.env.BD_PASSWORD || "a4I4wZCvt45f3lmGyI43P";
 export const BD_PORT = process.env.BD_PORT || 3306;
 
 export const PORT = process.env.PORT || 3000;
