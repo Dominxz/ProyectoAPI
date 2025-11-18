@@ -16,7 +16,7 @@ export const register = async (req, res) => {
       return res.status(400).json({ message: "Faltan campos obligatorios" });
     }
 
-    // Verificar que no exista
+    // Verificar que no exista el usuario
     const [exist] = await conmysql.query(
       "SELECT * FROM login WHERE usuario = ?",
       [usuario]
@@ -26,23 +26,23 @@ export const register = async (req, res) => {
       return res.status(400).json({ message: "El usuario ya existe" });
     }
 
-    // Encriptar
+    // Encriptar contraseña
     const hash = await bcrypt.hash(password, 10);
 
-    // Insertar login
+    // Insertar en login
     const [loginResult] = await conmysql.query(
       "INSERT INTO login (usuario, password) VALUES (?, ?)",
       [usuario, hash]
     );
 
-    // Insertar usuario
+    // Insertar en usuarios con rol PACIENTE (3)
     const [userResult] = await conmysql.query(
       `INSERT INTO usuarios (login_id, rol_id, nombre, correo)
        VALUES (?, 3, ?, ?)`,
       [loginResult.insertId, nombre, correo]
     );
 
-    // Insertar en tabla pacientes
+    // Insertar en tabla pacientes (solo el vínculo)
     await conmysql.query(
       `INSERT INTO pacientes (usuario_id) VALUES (?)`,
       [userResult.insertId]
@@ -58,7 +58,6 @@ export const register = async (req, res) => {
         rol_id: 3,
       },
     });
-
   } catch (error) {
     console.error("Error en register:", error);
     return res.status(500).json({ message: "Error en el servidor" });
@@ -124,7 +123,7 @@ export const login = async (req, res) => {
    === REGISTRO MÉDICO + SOLICITUD
    ============================================================ */
 export const registerMedico = async (req, res) => {
-  const connection = await conmysql.getConnection();
+  const connection = await conmysql.getConnection(); // para usar transacciones
 
   try {
     const {
@@ -138,6 +137,7 @@ export const registerMedico = async (req, res) => {
       anios_experiencia,
     } = req.body;
 
+    // Validar campos obligatorios
     if (
       !usuario ||
       !password ||
@@ -178,23 +178,24 @@ export const registerMedico = async (req, res) => {
     );
     const login_id = loginResult.insertId;
 
-    // 2) Crear usuario rol médico
+    // 2) Crear usuario con rol MÉDICO (2)
+    //  ⚠️ IMPORTANTE: YA NO USAMOS estado_certificacion NI fecha_solicitud_certificacion
     const [usuarioResult] = await connection.query(
       `INSERT INTO usuarios 
-       (login_id, rol_id, nombre, correo, estado_certificacion, fecha_solicitud_certificacion)
-       VALUES (?, 2, ?, ?, 'pendiente', NOW())`,
+       (login_id, rol_id, nombre, correo)
+       VALUES (?, 2, ?, ?)`,
       [login_id, nombre, correo]
     );
     const usuario_id = usuarioResult.insertId;
 
-    // 3) Subir PDF
+    // 3) Subir PDF a Cloudinary (si viene)
     let documento_adjunto = null;
     if (req.file) {
       const uploadResult = await new Promise((resolve, reject) => {
         const stream = cloudinary.uploader.upload_stream(
           {
             folder: "solicitudes_certificacion",
-            resource_type: "raw",
+            resource_type: "raw", // PDF
           },
           (error, result) => {
             if (error) reject(error);
@@ -207,10 +208,11 @@ export const registerMedico = async (req, res) => {
       documento_adjunto = uploadResult.secure_url;
     }
 
-    // 4) Insertar en medicos
+    // 4) Insertar en tabla medicos
+    //  ⚠️ IMPORTANTE: columna = anios_experiencia (SIN Ñ)
     await connection.query(
       `INSERT INTO medicos 
-       (usuario_id, numero_licencia, especialidad, institucion, años_experiencia, documento_certificacion)
+       (usuario_id, numero_licencia, especialidad, institucion, anios_experiencia, documento_certificacion)
        VALUES (?,?,?,?,?,?)`,
       [
         usuario_id,
@@ -222,7 +224,7 @@ export const registerMedico = async (req, res) => {
       ]
     );
 
-    // 5) Crear solicitud
+    // 5) Crear solicitud en solicitudes_certificacion
     await connection.query(
       `INSERT INTO solicitudes_certificacion
        (usuario_id, numero_licencia, especialidad, institucion, documento_adjunto, estado)
@@ -242,7 +244,6 @@ export const registerMedico = async (req, res) => {
       message: "Médico registrado correctamente.",
       usuario_id,
     });
-
   } catch (error) {
     console.error("Error en registerMedico:", error);
     await connection.rollback();
