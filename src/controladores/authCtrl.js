@@ -136,7 +136,6 @@ export const registerMedico = async (req, res) => {
       años_experiencia,
     } = req.body;
 
-    // Validaciones básicas
     if (
       !usuario ||
       !clave ||
@@ -149,7 +148,7 @@ export const registerMedico = async (req, res) => {
       return res.status(400).json({ message: "Faltan campos obligatorios" });
     }
 
-    // Verificar usuario/login duplicado
+    // ¿usuario ya existe?
     const [existeLogin] = await conmysql.query(
       "SELECT login_id FROM login WHERE usuario = ?",
       [usuario]
@@ -158,7 +157,7 @@ export const registerMedico = async (req, res) => {
       return res.status(400).json({ message: "El usuario ya existe" });
     }
 
-    // Verificar correo duplicado
+    // ¿correo ya existe?
     const [existeCorreo] = await conmysql.query(
       "SELECT usuario_id FROM usuarios WHERE correo = ?",
       [correo]
@@ -169,27 +168,25 @@ export const registerMedico = async (req, res) => {
 
     await connection.beginTransaction();
 
-    // 1) Crear login (credenciales)
+    // 1) login
     const hash = await bcrypt.hash(clave, 10);
-
     const [loginResult] = await connection.query(
       "INSERT INTO login (usuario, contraseña) VALUES (?, ?)",
       [usuario, hash]
     );
     const login_id = loginResult.insertId;
 
-    // 2) Crear usuario base como MÉDICO (rol_id = 2) y estado_certificacion pendiente
+    // 2) usuario con rol MEDICO (rol_id = 2)
     const [usuarioResult] = await connection.query(
       `INSERT INTO usuarios 
        (login_id, rol_id, nombre, correo, estado_certificacion, fecha_solicitud_certificacion)
-       VALUES (?, 2, ?, ?, 'pendiente', NOW())`,   // <--- aquí cambiamos 3 por 2
+       VALUES (?, 2, ?, ?, 'pendiente', NOW())`,
       [login_id, nombre, correo]
     );
     const usuario_id = usuarioResult.insertId;
 
-    // 3) Subir PDF a Cloudinary (si viene)
+    // 3) subir PDF a Cloudinary (si viene)
     let documento_adjunto = null;
-
     if (req.file) {
       const uploadResult = await new Promise((resolve, reject) => {
         const stream = cloudinary.uploader.upload_stream(
@@ -208,7 +205,22 @@ export const registerMedico = async (req, res) => {
       documento_adjunto = uploadResult.secure_url;
     }
 
-    // 4) Crear solicitud de certificación
+    // 4) insertar en tabla MEDICOS
+    await connection.query(
+      `INSERT INTO medicos 
+       (usuario_id, numero_licencia, especialidad, institucion, años_experiencia, documento_certificacion)
+       VALUES (?,?,?,?,?,?)`,
+      [
+        usuario_id,
+        numero_licencia,
+        especialidad,
+        institucion,
+        años_experiencia || null,
+        documento_adjunto,
+      ]
+    );
+
+    // 5) crear solicitud de certificación (para panel admin)
     await connection.query(
       `INSERT INTO solicitudes_certificacion
        (usuario_id, numero_licencia, especialidad, institucion, documento_adjunto, estado)
@@ -225,7 +237,7 @@ export const registerMedico = async (req, res) => {
     await connection.commit();
 
     return res.status(201).json({
-      message: "Solicitud de médico registrada. En espera de revisión.",
+      message: "Médico registrado y solicitud creada.",
       usuario_id,
     });
   } catch (error) {
