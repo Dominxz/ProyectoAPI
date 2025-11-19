@@ -53,6 +53,11 @@ router.delete(
   deleteAdministrador
 );
 
-router.get("/principal", verifyToken, verifyRole([1]), principal);
+router.get(
+  "/administradores/principal",
+  verifyToken,
+  verifyRole([1]),
+  principal
+);
 
 export default router;
