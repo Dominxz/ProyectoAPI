@@ -14,7 +14,7 @@ const router = Router();
 
 router.get("/pacientes/prueba", pruebaPacientes);
 
-// SOLO ADMIN (rol_id = 1)
+// Solo ADMIN (rol 1)
 router.get("/pacientes", verifyToken, verifyRole([1]), getPacientes);
 router.get("/pacientes/:id", verifyToken, verifyRole([1]), getPacientexId);
 router.delete("/pacientes/:id", verifyToken, verifyRole([1]), deletePaciente);
