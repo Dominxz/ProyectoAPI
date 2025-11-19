@@ -10,13 +10,13 @@ import cloudinary from "../cloudinary.js";
    ============================================================ */
 export const register = async (req, res) => {
   try {
-    const { usuario, password, nombre, correo } = req.body;
+    const { usuario, password, nombre, correo, edad, peso, estatura } = req.body;
 
     if (!usuario || !password || !nombre || !correo) {
       return res.status(400).json({ message: "Faltan campos obligatorios" });
     }
 
-    // Verificar que no exista el usuario
+    // Verificar duplicado usuario
     const [exist] = await conmysql.query(
       "SELECT * FROM login WHERE usuario = ?",
       [usuario]
@@ -29,35 +29,38 @@ export const register = async (req, res) => {
     // Encriptar contraseña
     const hash = await bcrypt.hash(password, 10);
 
-    // Insertar en login
+    // Insertar login
     const [loginResult] = await conmysql.query(
       "INSERT INTO login (usuario, password) VALUES (?, ?)",
       [usuario, hash]
     );
 
-    // Insertar en usuarios con rol PACIENTE (3)
+    // Insertar usuario con rol 3 = paciente
     const [userResult] = await conmysql.query(
       `INSERT INTO usuarios (login_id, rol_id, nombre, correo)
        VALUES (?, 3, ?, ?)`,
       [loginResult.insertId, nombre, correo]
     );
 
-    // Insertar en tabla pacientes (solo el vínculo)
+    const usuario_id = userResult.insertId;
+
+    // Insertar datos médicos del paciente
     await conmysql.query(
-      `INSERT INTO pacientes (usuario_id) VALUES (?)`,
-      [userResult.insertId]
+      `INSERT INTO pacientes (usuario_id, edad, peso, estatura) 
+       VALUES (?, ?, ?, ?)`,
+      [
+        usuario_id,
+        edad || null,
+        peso || null,
+        estatura || null,
+      ]
     );
 
     return res.status(201).json({
       message: "Paciente registrado correctamente",
-      usuario: {
-        usuario_id: userResult.insertId,
-        login_id: loginResult.insertId,
-        nombre,
-        correo,
-        rol_id: 3,
-      },
+      usuario_id,
     });
+
   } catch (error) {
     console.error("Error en register:", error);
     return res.status(500).json({ message: "Error en el servidor" });
