@@ -65,37 +65,46 @@ export const register = async (req, res) => {
 };
 
 
-// ================================
-// === LOGIN
-// ================================
+/* ============================================================
+   === LOGIN
+   ============================================================ */
 export const login = async (req, res) => {
   try {
     const { usuario, password } = req.body;
 
+    // Buscar en tabla login
     const [result] = await conmysql.query(
       "SELECT * FROM login WHERE usuario = ?",
       [usuario]
     );
 
-    if (result.length === 0)
+    if (result.length === 0) {
       return res.status(404).json({ message: "Usuario no encontrado" });
+    }
 
     const loginData = result[0];
 
-    // Comparar contraseña (OJO: password)
+    // Comparar contraseña
     const match = await bcrypt.compare(password, loginData.password);
-    if (!match)
+    if (!match) {
       return res.status(401).json({ message: "Contraseña incorrecta" });
+    }
 
-    // Datos usuario
+    // Obtener datos de usuarios
     const [userData] = await conmysql.query(
       "SELECT * FROM usuarios WHERE login_id = ?",
       [loginData.login_id]
     );
 
+    if (userData.length === 0) {
+      return res
+        .status(404)
+        .json({ message: "No se encontró información del usuario" });
+    }
+
     const user = userData[0];
 
-    // Token
+    // Crear token
     const token = jwt.sign(
       {
         usuario_id: user.usuario_id,
@@ -106,18 +115,16 @@ export const login = async (req, res) => {
       { expiresIn: "2h" }
     );
 
-    res.json({
+    return res.json({
       message: "Login exitoso",
       token,
       usuario: user,
     });
-
   } catch (error) {
     console.error("Error en login:", error);
-    res.status(500).json({ message: "Error en el servidor" });
+    return res.status(500).json({ message: "Error en el servidor" });
   }
 };
-
 
 /* ============================================================
    === REGISTRO MÉDICO + SOLICITUD
