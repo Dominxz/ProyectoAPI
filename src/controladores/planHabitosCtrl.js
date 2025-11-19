@@ -79,7 +79,8 @@ export const getPlanHabitoxId = async (req, res) => {
 };
 
 // === CREAR PLAN DE HÁBITO ===
-// Se usa cuando la IA o un médico crea un nuevo hábito para el paciente
+// En la práctica, el médico puede enviar SOLO:
+// usuario_id, habito_id, frecuencia, meta
 export const postPlanHabito = async (req, res) => {
   try {
     const {
@@ -87,6 +88,7 @@ export const postPlanHabito = async (req, res) => {
       habito_id,
       frecuencia,
       meta,
+      // Los siguientes son opcionales, se ponen por defecto
       estado,
       origen,
       estado_validacion,
@@ -94,6 +96,22 @@ export const postPlanHabito = async (req, res) => {
       fecha_validacion,
       motivo_revision,
     } = req.body;
+
+    if (!usuario_id || !habito_id) {
+      return res
+        .status(400)
+        .json({ message: "usuario_id y habito_id son obligatorios" });
+    }
+
+    // Valores por defecto si NO vienen en el body
+    const _estado = estado || "Activo";
+    const _origen = origen || "medico"; // creado por el médico
+    const _estado_validacion = estado_validacion || "aprobado";
+
+    // Si viene fecha_validacion la usamos, si no y está aprobado => NOW()
+    const usarFechaValidacion =
+      fecha_validacion ||
+      (_estado_validacion !== "pendiente" ? new Date() : null);
 
     const [result] = await conmysql.query(
       `INSERT INTO plan_habitos
@@ -103,14 +121,14 @@ export const postPlanHabito = async (req, res) => {
       [
         usuario_id,
         habito_id,
-        frecuencia,
-        meta,
-        estado,
-        origen,
-        estado_validacion,
-        medico_validador_id,
-        fecha_validacion,
-        motivo_revision,
+        frecuencia || null,
+        meta || null,
+        _estado,
+        _origen,
+        _estado_validacion,
+        medico_validador_id || null,
+        usarFechaValidacion,
+        motivo_revision || null,
       ]
     );
 
@@ -122,7 +140,7 @@ export const postPlanHabito = async (req, res) => {
 };
 
 // === ACTUALIZAR PLAN DE HÁBITO ===
-// Útil para cuando el médico valida (aprueba/rechaza) el plan
+// Útil para cuando el médico ajusta el plan o cambia el estado
 export const putPlanHabito = async (req, res) => {
   try {
     const { id } = req.params;
@@ -139,18 +157,18 @@ export const putPlanHabito = async (req, res) => {
 
     const [result] = await conmysql.query(
       `UPDATE plan_habitos
-       SET frecuencia=?, meta=?, estado=?, origen=?,
-           estado_validacion=?, medico_validador_id=?, fecha_validacion=?, motivo_revision=?
-       WHERE plan_habito_id=?`,
+       SET frecuencia = ?, meta = ?, estado = ?, origen = ?,
+           estado_validacion = ?, medico_validador_id = ?, fecha_validacion = ?, motivo_revision = ?
+       WHERE plan_habito_id = ?`,
       [
-        frecuencia,
-        meta,
-        estado,
-        origen,
-        estado_validacion,
-        medico_validador_id,
-        fecha_validacion,
-        motivo_revision,
+        frecuencia || null,
+        meta || null,
+        estado || "Activo",
+        origen || "medico",
+        estado_validacion || "aprobado",
+        medico_validador_id || null,
+        fecha_validacion || null,
+        motivo_revision || null,
         id,
       ]
     );
@@ -159,7 +177,7 @@ export const putPlanHabito = async (req, res) => {
       return res.status(404).json({ message: "Plan de hábito no encontrado" });
 
     const [fila] = await conmysql.query(
-      "SELECT * FROM plan_habitos WHERE plan_habito_id=?",
+      "SELECT * FROM plan_habitos WHERE plan_habito_id = ?",
       [id]
     );
     res.json(fila[0]);
@@ -175,7 +193,7 @@ export const deletePlanHabito = async (req, res) => {
     const { id } = req.params;
 
     const [result] = await conmysql.query(
-      "DELETE FROM plan_habitos WHERE plan_habito_id=?",
+      "DELETE FROM plan_habitos WHERE plan_habito_id = ?",
       [id]
     );
 

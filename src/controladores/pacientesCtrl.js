@@ -8,7 +8,7 @@ export const pruebaPacientes = (req, res) => {
 };
 
 // ================================
-// OBTENER TODOS LOS PACIENTES (solo admin)
+// OBTENER TODOS LOS PACIENTES (admin + medico)
 // ================================
 export const getPacientes = async (req, res) => {
   try {
@@ -38,7 +38,7 @@ export const getPacientes = async (req, res) => {
 };
 
 // ================================
-// OBTENER PACIENTE POR ID (solo admin)
+// OBTENER PACIENTE POR ID (admin + medico)
 // ================================
 export const getPacientexId = async (req, res) => {
   try {
@@ -57,9 +57,12 @@ export const getPacientexId = async (req, res) => {
     `, [req.params.id]);
 
     if (rows.length === 0)
-      return res.status(404).json({ message: "Paciente no encontrado" });
+      return res.json({ cant: 0, message: "Paciente no encontrado" });
 
-    res.json(rows[0]);
+    res.json({
+      cant: 1,
+      data: rows[0]
+    });
 
   } catch (error) {
     console.error("Error en getPacientexId:", error);
@@ -68,7 +71,7 @@ export const getPacientexId = async (req, res) => {
 };
 
 // ================================
-// ELIMINAR PACIENTE (pacientes + usuarios + login asociado)
+// ELIMINAR PACIENTE (solo admin)
 // ================================
 export const deletePaciente = async (req, res) => {
   try {
