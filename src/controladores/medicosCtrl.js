@@ -196,22 +196,58 @@ export const putMedico = async (req, res) => {
   }
 };
 
-// === ELIMINAR MÉDICO ===
+// === ELIMINAR MÉDICO COMPLETO (medicos + usuarios + login) ===
 export const deleteMedico = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const [result] = await conmysql.query(
-      "DELETE FROM medicos WHERE medico_id=?",
+    // 1️⃣ Obtener usuario_id del medico
+    const [[medicoData]] = await conmysql.query(
+      "SELECT usuario_id FROM medicos WHERE medico_id = ?",
       [id]
     );
 
-    if (result.affectedRows <= 0)
+    if (!medicoData) {
       return res.status(404).json({ message: "Médico no encontrado" });
+    }
 
-    res.json({ message: "Médico eliminado correctamente" });
+    const usuario_id = medicoData.usuario_id;
+
+    // 2️⃣ Obtener login_id del usuario
+    const [[usuarioData]] = await conmysql.query(
+      "SELECT login_id FROM usuarios WHERE usuario_id = ?",
+      [usuario_id]
+    );
+
+    const login_id = usuarioData?.login_id;
+
+    // 3️⃣ Eliminar MÉDICO
+    await conmysql.query(
+      "DELETE FROM medicos WHERE medico_id = ?",
+      [id]
+    );
+
+    // 4️⃣ Eliminar USUARIO
+    await conmysql.query(
+      "DELETE FROM usuarios WHERE usuario_id = ?",
+      [usuario_id]
+    );
+
+    // 5️⃣ Eliminar LOGIN (si existe)
+    if (login_id) {
+      await conmysql.query(
+        "DELETE FROM login WHERE login_id = ?",
+        [login_id]
+      );
+    }
+
+    return res.json({
+      message: "Médico eliminado correctamente (medico + usuario + login)"
+    });
+
   } catch (error) {
     console.error("Error en deleteMedico:", error);
     return res.status(500).json({ message: "Error en el servidor" });
   }
 };
+
