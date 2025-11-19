@@ -1,4 +1,3 @@
-// src/routes/pacientes.routes.js
 import { Router } from "express";
 import { verifyToken } from "../middlewares/verifyToken.js";
 import { verifyRole } from "../middlewares/verifyRole.js";
@@ -14,7 +13,7 @@ const router = Router();
 
 router.get("/pacientes/prueba", pruebaPacientes);
 
-// SOLO ADMIN (rol_id = 1)
+// SOLO ADMIN
 router.get("/pacientes", verifyToken, verifyRole([1]), getPacientes);
 router.get("/pacientes/:id", verifyToken, verifyRole([1]), getPacientexId);
 router.delete("/pacientes/:id", verifyToken, verifyRole([1]), deletePaciente);
